@@ -1,11 +1,13 @@
 package com.hadriel.macoslauncher
 
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.BatteryManager
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
@@ -119,12 +121,33 @@ private fun OrbitLauncher() {
         apps = withContext(Dispatchers.IO) { loadLaunchableApps(context) }
         isRefreshing = false
     }
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(receiverContext: Context?, intent: Intent?) {
+                scope.launch {
+                    isRefreshing = true
+                    apps = withContext(Dispatchers.IO) { loadLaunchableApps(context) }
+                    isRefreshing = false
+                }
+            }
+        }
+        val filter = android.content.IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REMOVED)
+            addAction(Intent.ACTION_PACKAGE_CHANGED)
+            addAction(Intent.ACTION_PACKAGE_REPLACED)
+            addDataScheme("package")
+        }
+        if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        else @Suppress("DEPRECATION") context.registerReceiver(receiver, filter)
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
+    }
 
     val favoritePackages = preferences[FavoritesKey]
     val hiddenPackages = preferences[HiddenKey] ?: emptySet()
     val favorites = remember(apps, favoritePackages) {
         if (favoritePackages == null) apps.take(5)
-        else favoritePackages.mapNotNull { pkg -> apps.firstOrNull { it.packageName == pkg } }.take(6)
+        else favoritePackages.mapNotNull { pkg -> apps.firstOrNull { it.packageName == pkg } }.take(5)
     }
     val hiddenApps = remember(apps, hiddenPackages) { apps.filter { it.packageName in hiddenPackages } }
     val homeApps = remember(apps, hiddenPackages) { apps.filterNot { it.packageName in hiddenPackages } }
@@ -320,7 +343,7 @@ private fun OrbitLauncher() {
                     onFavorite = {
                         val next = if (favorites.any { it.packageName == app.packageName }) {
                             favorites.filterNot { it.packageName == app.packageName }
-                        } else (favorites + app).take(6)
+                        } else (favorites + app).take(5)
                         scope.launch { context.launcherStore.edit { it[FavoritesKey] = next.map { item -> item.packageName }.toSet() } }
                         selectedApp = null
                     },
@@ -473,7 +496,7 @@ private fun Dock(
             .padding(horizontal = 10.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically
     ) {
-        apps.take(6).forEach { app ->
+        apps.take(5).forEach { app ->
             val icon = remember(app.packageName) { app.icon.toBitmap(112, 112).asImageBitmap() }
             Image(icon, app.label, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(12.dp))
                 .combinedClickable(onClick = { onLaunch(app) }, onLongClick = { onLongPress(app) }), contentScale = ContentScale.Fit)
@@ -515,7 +538,7 @@ private fun AppDrawer(
     }.filter { it.label.contains(search, ignoreCase = true) }
     Box(Modifier.fillMaxSize().background(Color(0xCC050914)).clickable(onClick = onDismiss), contentAlignment = Alignment.BottomCenter) {
         Column(
-            Modifier.fillMaxSize().padding(top = 36.dp, start = 14.dp, end = 14.dp, bottom = 12.dp)
+            Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(top = 12.dp, start = 14.dp, end = 14.dp, bottom = 8.dp)
                 .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
                 .background(Color(0xF0141E31)).clickable { }.padding(horizontal = 18.dp, vertical = 18.dp)
         ) {
