@@ -394,7 +394,7 @@ private fun TopBar(time: String, date: String, battery: Int, accent: Color, onSe
     ) {
         Box(
             Modifier.size(34.dp).clip(RoundedCornerShape(12.dp))
-                .background(Brush.linearGradient(listOf(accent, Color(0xFF345A9A))),
+                .background(Brush.linearGradient(listOf(accent, Color(0xFF345A9A)))),
             contentAlignment = Alignment.Center
         ) {
             Text("O", color = Color(0xFF07101E), fontSize = 21.sp, fontWeight = FontWeight.Black)
@@ -517,7 +517,7 @@ private fun AppDrawer(
         Column(
             Modifier.fillMaxSize().padding(top = 36.dp, start = 14.dp, end = 14.dp, bottom = 12.dp)
                 .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
-                .background(Color(0xF0141E31)).padding(horizontal = 18.dp, vertical = 18.dp)
+                .background(Color(0xF0141E31)).clickable { }.padding(horizontal = 18.dp, vertical = 18.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
