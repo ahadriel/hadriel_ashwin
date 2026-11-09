@@ -105,11 +105,6 @@ private fun LauncherApp() {
     val settings by context.launcherStore.data.collectAsStateWithLifecycle(initialValue = androidx.datastore.preferences.core.emptyPreferences())
     val storedFavorites = settings[FavoritesKey] ?: emptySet()
     val storedPage = settings[HomePageKey] ?: 0
-    LaunchedEffect(apps) {
-        if (storedFavorites.isEmpty() && apps.isNotEmpty()) {
-            context.launcherStore.edit { it[FavoritesKey] = apps.take(5).map { app -> app.packageName }.toSet() }
-        }
-    }
     val favorites = remember(apps, storedFavorites) {
         val valid = apps.filter { it.packageName in storedFavorites }
         if (valid.isNotEmpty()) valid.take(6) else apps.take(5)
@@ -175,7 +170,6 @@ private fun LauncherApp() {
                 PageDots(pages, pagerState.currentPage)
                 Dock(
                     apps = favorites,
-                    allApps = apps,
                     onOpenLaunchpad = { launchpad = true },
                     onLaunch = { launchApp(context, it) },
                     onPreview = { preview = it }
@@ -229,8 +223,17 @@ private fun LauncherApp() {
 
             if (preview != null) AppPreview(
                 app = preview!!,
+                isFavorite = favorites.any { it.packageName == preview!!.packageName },
                 onDismiss = { preview = null },
-                onOpen = { launchApp(context, preview!!); preview = null }
+                onOpen = { launchApp(context, preview!!); preview = null },
+                onToggleFavorite = {
+                    val selected = preview!!
+                    val updated = if (favorites.any { it.packageName == selected.packageName }) {
+                        favorites.filterNot { it.packageName == selected.packageName }
+                    } else (favorites + selected).take(6)
+                    scope.launch { context.launcherStore.edit { it[FavoritesKey] = updated.map { item -> item.packageName }.toSet() } }
+                    preview = null
+                }
             )
         }
     }
@@ -306,10 +309,8 @@ private fun PageDots(count: Int, selected: Int) {
 @Composable
 private fun Dock(
     apps: List<LaunchableApp>,
-    allApps: List<LaunchableApp>,
     onOpenLaunchpad: () -> Unit,
-    onLaunch: (LaunchableApp) -> Unit,
-    onPreview: (LaunchableApp) -> Unit
+    onLaunch: (LaunchableApp) -> Unit
 ) {
     var dockWidth by remember { mutableFloatStateOf(1f) }
     var activeIndex by remember { mutableIntStateOf(-1) }
@@ -351,7 +352,7 @@ private fun Dock(
 }
 
 @Composable
-private fun AppPreview(app: LaunchableApp, onDismiss: () -> Unit, onOpen: () -> Unit) {
+private fun AppPreview(app: LaunchableApp, isFavorite: Boolean, onDismiss: () -> Unit, onOpen: () -> Unit, onToggleFavorite: () -> Unit) {
     val icon = remember(app.packageName) { app.icon.toBitmap(144, 144).asImageBitmap() }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(
@@ -378,6 +379,9 @@ private fun AppPreview(app: LaunchableApp, onDismiss: () -> Unit, onOpen: () -> 
                 Text("Ready to open", color = Color(0xFFB9C6D9), fontSize = 12.sp)
                 Spacer(Modifier.height(22.dp))
                 Button(onClick = onOpen, modifier = Modifier.fillMaxWidth()) { Text("Open app") }
+                OutlinedButton(onClick = onToggleFavorite, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (isFavorite) "Remove from dock" else "Add to dock")
+                }
                 TextButton(onClick = onDismiss) { Text("Close", color = Color(0xFFD8E4F7)) }
             }
         }
