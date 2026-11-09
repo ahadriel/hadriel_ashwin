@@ -171,8 +171,7 @@ private fun LauncherApp() {
                 Dock(
                     apps = favorites,
                     onOpenLaunchpad = { launchpad = true },
-                    onLaunch = { launchApp(context, it) },
-                    onPreview = { preview = it }
+                    onLaunch = { launchApp(context, it) }
                 )
                 Spacer(Modifier.height(12.dp))
             }
