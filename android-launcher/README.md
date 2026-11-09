@@ -11,7 +11,8 @@ ORBIT is a native Android HOME launcher built with Kotlin and Jetpack Compose. I
 - Searchable app library with All apps, Dock, and Hidden views
 - Quick app search from the top bar
 - Long-press app actions: open, pin/unpin from dock, hide/show on home, open Android app info, and request uninstall
-- Persistent dock favourites, hidden-app list, home page, grid size, accent, wallpaper, label visibility, and clock preference through Preferences DataStore
+- Up to five persistent dock favourites, hidden-app list, home page, grid size, accent, wallpaper, label visibility, and clock preference through Preferences DataStore
+- Automatic app-library refresh when apps are installed, removed, or updated
 - Five accent colours and five atmospheric gradient wallpapers
 - Live clock, date, and battery percentage
 - Adaptive ORBIT launcher icon
@@ -32,7 +33,7 @@ APK output:
 
 `app/build/outputs/apk/debug/app-debug.apk`
 
-The repository workflow also copies the APK to the repository's `appbuild/launcher.apk` after a successful push build and uploads a downloadable Actions artifact.
+The repository workflow also copies the APK to the repository's `appbuild/launcher.apk` after a successful push build and uploads a downloadable `orbit-launcher-debug` Actions artifact.
 
 ## Install and set as default
 
