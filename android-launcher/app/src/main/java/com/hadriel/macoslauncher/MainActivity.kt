@@ -53,6 +53,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.graphics.drawable.toBitmap
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringSetPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
@@ -68,6 +69,7 @@ import kotlin.math.roundToInt
 
 private val android.content.Context.launcherStore by preferencesDataStore("launcher_settings")
 private val FavoritesKey = stringSetPreferencesKey("dock_favorites")
+private val HomePageKey = intPreferencesKey("home_page")
 
 data class LaunchableApp(val packageName: String, val label: String, val icon: Drawable)
 
@@ -100,9 +102,14 @@ private fun LauncherApp() {
             .distinctBy { it.packageName }
             .sortedBy { it.label.lowercase(Locale.getDefault()) }
     }
-    val storedFavorites by context.launcherStore.data
-        .map { it[FavoritesKey] ?: emptySet() }
-        .collectAsStateWithLifecycle(initialValue = emptySet())
+    val settings by context.launcherStore.data.collectAsStateWithLifecycle(initialValue = androidx.datastore.preferences.core.emptyPreferences())
+    val storedFavorites = settings[FavoritesKey] ?: emptySet()
+    val storedPage = settings[HomePageKey] ?: 0
+    LaunchedEffect(apps) {
+        if (storedFavorites.isEmpty() && apps.isNotEmpty()) {
+            context.launcherStore.edit { it[FavoritesKey] = apps.take(5).map { app -> app.packageName }.toSet() }
+        }
+    }
     val favorites = remember(apps, storedFavorites) {
         val valid = apps.filter { it.packageName in storedFavorites }
         if (valid.isNotEmpty()) valid.take(6) else apps.take(5)
@@ -126,7 +133,10 @@ private fun LauncherApp() {
 
     val pageSize = 20
     val pages = max(1, (apps.size + pageSize - 1) / pageSize)
-    val pagerState = rememberPagerState(pageCount = { pages })
+    val pagerState = rememberPagerState(initialPage = storedPage.coerceIn(0, pages - 1), pageCount = { pages })
+    LaunchedEffect(pagerState.currentPage) {
+        context.launcherStore.edit { it[HomePageKey] = pagerState.currentPage }
+    }
     BackHandler(enabled = launchpad || preview != null) {
         if (preview != null) preview = null else launchpad = false
     }
@@ -174,13 +184,14 @@ private fun LauncherApp() {
             }
 
             AnimatedVisibility(visible = launchpad, modifier = Modifier.fillMaxSize()) {
-                Box(Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxSize().clickable { launchpad = false; search = "" }) {
                     // Blur the home screen behind the launchpad; Compose falls back gracefully on older devices.
                     Box(Modifier.fillMaxSize().blur(18.dp).background(Color(0x66070B16)))
                     Column(
                         Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 42.dp)
                             .clip(RoundedCornerShape(30.dp))
                             .background(Color(0xCC182238))
+                            .clickable { /* Consume taps inside the panel so only outside taps dismiss it. */ }
                             .padding(18.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -213,7 +224,6 @@ private fun LauncherApp() {
                             }
                         }
                     }
-                    Box(Modifier.fillMaxSize().clickable { launchpad = false; search = "" })
                 }
             }
 
@@ -350,7 +360,7 @@ private fun AppPreview(app: LaunchableApp, onDismiss: () -> Unit, onOpen: () -> 
         ) {
             Column(
                 Modifier.fillMaxWidth(0.84f).clip(RoundedCornerShape(26.dp))
-                    .background(Color(0xE82B354B)).clickable(enabled = false) {}
+                    .background(Color(0xE82B354B)).clickable { /* Keep taps inside the preview from dismissing it. */ }
                     .padding(22.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
