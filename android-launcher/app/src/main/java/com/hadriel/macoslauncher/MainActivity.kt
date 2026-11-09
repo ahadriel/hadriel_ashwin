@@ -383,6 +383,7 @@ private fun loadLaunchableApps(context: Context): List<LaunchableApp> {
             val activityInfo = info.activityInfo ?: return@mapNotNull null
             LaunchableApp(activityInfo.packageName, info.loadLabel(pm).toString(), info.loadIcon(pm))
         }
+        .filterNot { it.packageName == context.packageName }
         .distinctBy { it.packageName }
         .sortedBy { it.label.lowercase(Locale.getDefault()) }
 }
