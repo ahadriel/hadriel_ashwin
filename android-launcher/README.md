@@ -1,48 +1,61 @@
-# macOS-inspired Android Launcher
+# ORBIT Launcher
 
-A native Android HOME app built with Kotlin and Jetpack Compose. The project lives in this folder so it can coexist with the website at the repository root.
+ORBIT is a native Android HOME launcher built with Kotlin and Jetpack Compose. It has its own midnight-cosmic visual identity: quiet blue/teal accents, layered atmosphere, glass-like surfaces, and restrained motion. It is inspired by premium desktop launchers without trying to copy macOS.
 
-## Features
+## Current features
 
-- Android HOME / default-launcher intent filters
-- Installed-app discovery through PackageManager
-- Four-column swipeable home pages
-- Animated page indicators
-- Frosted dock with touch-drag magnification and Launchpad shortcut
-- Five-column searchable Launchpad overlay
-- Long-press app preview panel with macOS-style traffic-light controls
-- Multi-stop gradient wallpaper and radial highlight
-- Dock favorites persisted with Preferences DataStore
-- System light/dark Material theme
-- GitHub Actions debug APK build
+- Registers as an Android HOME app and can be selected as the device's default launcher
+- Discovers installed launchable apps through Android's PackageManager
+- Swipeable home pages with a responsive four- or five-column grid
+- Animated page indicators and a persistent dock
+- Searchable app library with All apps, Dock, and Hidden views
+- Quick app search from the top bar
+- Long-press app actions: open, pin/unpin from dock, hide/show on home, open Android app info, and request uninstall
+- Persistent dock favourites, hidden-app list, home page, grid size, accent, wallpaper, label visibility, and clock preference through Preferences DataStore
+- Five accent colours and five atmospheric gradient wallpapers
+- Live clock, date, and battery percentage
+- Adaptive ORBIT launcher icon
+- Edge-to-edge layout with Android system bars respected
+- GitHub Actions build that publishes the successful debug APK to `appbuild/launcher.apk`
 
 ## Build
 
-Requirements: JDK 17, Android SDK Platform 35, and Gradle 8.9.
+Requirements: JDK 17, Android SDK Platform 35, Build Tools 35.0.0, and Gradle 8.9.
 
 From this directory:
 
 ```bash
-gradle assembleDebug
+gradle --no-daemon assembleDebug
 ```
 
 APK output:
 
 `app/build/outputs/apk/debug/app-debug.apk`
 
-The GitHub Actions workflow builds this APK on pushes, pull requests, or manual workflow dispatch and uploads it as an artifact.
+The repository workflow also copies the APK to the repository's `appbuild/launcher.apk` after a successful push build and uploads a downloadable Actions artifact.
 
-## Install and set as Home app
+## Install and set as default
 
-1. Install the debug APK on an Android 10+ device.
-2. Press Home and choose **macOS Launcher**.
-3. Select **Always** if you want it as the default launcher.
-4. To switch back, open Android Settings → Apps → Default apps → Home app.
+1. Install `launcher.apk` on an Android 10+ device.
+2. Press the device's Home button.
+3. Choose **ORBIT Launcher** when Android asks which Home app to use.
+4. Select **Always** to make ORBIT the default.
+5. To switch back, open Android Settings → Apps → Default apps → Home app.
 
-## Notes and platform limits
+## Controls
 
-- The launcher uses Android's public app-launching APIs; it does not manage or resize other apps' windows.
-- App preview is a launcher-side preview panel, not a live screenshot or floating app window.
-- Android package visibility is declared for app discovery. Review Google Play's package-visibility policy before publishing.
-- Blur and animation quality depend on the device GPU and Android version. A translucent surface is used where full system-level macOS blur is unavailable.
-- This is a first implementation. Device-specific testing is still needed for OEM gesture navigation, cutouts, tablets, and 90/120 Hz displays.
+- Tap an app icon to launch it.
+- Swipe horizontally to move between home pages.
+- Tap **Explore** or the dock's ORBIT button to open the app library.
+- Tap the search icon for quick app search.
+- Long-press an app for its app actions.
+- Tap the settings icon to customise the launcher.
+- Use Android's Home-app setting to leave ORBIT or choose another launcher.
+
+## Platform notes
+
+- ORBIT is a real Android HOME activity, but it does not replace Android's system navigation, notification shade, recents screen, or lock screen.
+- App actions use public Android intents. Android confirms uninstall requests through its own system UI.
+- The app library requires broad package visibility to enumerate installed launchable apps. Google Play distribution would require a valid policy justification for `QUERY_ALL_PACKAGES`.
+- This version does not yet host Android home-screen widgets or support icon packs, drag-to-reorder placement, folders, or per-app notification badges.
+- Device testing is still required across OEM launchers, gesture navigation, cutouts, and high-refresh displays. A successful CI build confirms compilation, not every device-specific interaction.
