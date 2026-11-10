@@ -47,19 +47,36 @@ jobs:
         run: |
           mkdir -p ../appbuild
           cp app/build/outputs/apk/debug/app-debug.apk ../appbuild/launcher.apk
-      - name: Commit APK to appbuild
-        if: github.event_name != 'pull_request'
-        run: |
-          git -C .. config user.name "github-actions[bot]"
-          git -C .. config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git -C .. add appbuild/launcher.apk
-          if ! git -C .. diff --cached --quiet; then
-            git -C .. commit -m "Add latest Android launcher APK"
-            git -C .. push
-          fi
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: orbit-launcher-debug
           path: appbuild/launcher.apk
           if-no-files-found: error
+      - name: Commit APK to appbuild
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          artifact="$RUNNER_TEMP/orbit-launcher.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "$artifact"
+          git -C .. config user.name "github-actions[bot]"
+          git -C .. config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git -C .. fetch origin "$GITHUB_REF_NAME"
+            git -C .. checkout -B "$GITHUB_REF_NAME" "origin/$GITHUB_REF_NAME"
+            cp "$artifact" ../appbuild/launcher.apk
+            git -C .. add appbuild/launcher.apk
+            if git -C .. diff --cached --quiet; then
+              echo "The branch already contains this APK."
+              exit 0
+            fi
+            git -C .. commit -m "Add latest Android launcher APK"
+            if git -C .. push origin "HEAD:$GITHUB_REF_NAME"; then
+              echo "Published APK to appbuild/launcher.apk."
+              exit 0
+            fi
+            echo "Branch changed during publish attempt $attempt; retrying with the newest branch head."
+            git -C .. fetch origin "$GITHUB_REF_NAME"
+            git -C .. reset --hard "origin/$GITHUB_REF_NAME"
+          done
+          echo "::warning::The APK artifact was uploaded, but publishing it into appbuild/launcher.apk did not succeed after three attempts."
