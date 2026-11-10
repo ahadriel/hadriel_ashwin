@@ -487,7 +487,11 @@ private fun uninstallApp(context: Context, app: LaunchableApp) {
 @Composable
 private fun TopBar(time: String, date: String, battery: Int, accent: Color, onSearch: () -> Unit, onSettings: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 14.dp, vertical = 7.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(Brush.horizontalGradient(listOf(Color(0x664D7097), Color(0x33253550))))
+            .border(1.dp, Color(0x447FCBFF), RoundedCornerShape(22.dp))
+            .padding(horizontal = 11.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
