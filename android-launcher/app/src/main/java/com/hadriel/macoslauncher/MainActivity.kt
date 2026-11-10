@@ -18,6 +18,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -45,6 +46,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.Brush
@@ -72,6 +76,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -135,19 +140,23 @@ private fun OrbitLauncher() {
 
     var apps by remember { mutableStateOf<List<LaunchableApp>>(emptyList()) }
     var isRefreshing by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        isRefreshing = true
-        apps = withContext(Dispatchers.IO) { loadLaunchableApps(context) }
-        isRefreshing = false
+    var refreshJob by remember { mutableStateOf<Job?>(null) }
+    val refreshApps = remember(context, scope) {
+        {
+            refreshJob?.cancel()
+            refreshJob = scope.launch {
+                isRefreshing = true
+                delay(180)
+                apps = withContext(Dispatchers.IO) { loadLaunchableApps(context) }
+                isRefreshing = false
+            }
+        }
     }
-    DisposableEffect(context) {
+    LaunchedEffect(Unit) { refreshApps() }
+    DisposableEffect(context, refreshApps) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(receiverContext: Context?, intent: Intent?) {
-                scope.launch {
-                    isRefreshing = true
-                    apps = withContext(Dispatchers.IO) { loadLaunchableApps(context) }
-                    isRefreshing = false
-                }
+                refreshApps()
             }
         }
         val filter = android.content.IntentFilter().apply {
@@ -199,7 +208,7 @@ private fun OrbitLauncher() {
             val level = batteryIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
             val scale = batteryIntent?.getIntExtra(BatteryManager.EXTRA_SCALE, 100) ?: 100
             if (level >= 0 && scale > 0) battery = level * 100 / scale
-            delay(15_000)
+            delay(30_000)
         }
     }
 
@@ -326,7 +335,7 @@ private fun OrbitLauncher() {
                                 verticalArrangement = Arrangement.spacedBy(19.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                items(pageApps, key = { it.packageName }) { app ->
+                                items(pageApps, key = { it.packageName }, contentType = { "app" }) { app ->
                                     AppTile(app, accent, showLabels,
                                         onClick = { launchApp(context, app) },
                                         onLongClick = { selectedApp = app }
@@ -382,11 +391,7 @@ private fun OrbitLauncher() {
                     onLabels = { value -> scope.launch { context.launcherStore.edit { it[LabelsKey] = value } } },
                     onClock24 = { value -> scope.launch { context.launcherStore.edit { it[Clock24Key] = value } } },
                     onRefreshApps = {
-                        scope.launch {
-                            isRefreshing = true
-                            apps = withContext(Dispatchers.IO) { loadLaunchableApps(context) }
-                            isRefreshing = false
-                        }
+                        refreshApps()
                     },
                     isDefaultLauncher = isDefaultLauncher,
                     onSetDefaultLauncher = requestDefaultLauncher,
@@ -533,8 +538,21 @@ private fun AppTile(
     onClick: () -> Unit, onLongClick: () -> Unit
 ) {
     val icon = app.icon
+    val interactionSource = remember(app.packageName) { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.94f else 1f,
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = 520f),
+        label = "orbit-app-press"
+    )
     Column(
-        Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick)
+        Modifier.fillMaxWidth()
+            .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
+            .combinedClickable(
+                interactionSource = interactionSource,
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .padding(vertical = if (compact) 3.dp else 5.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -557,7 +575,11 @@ private fun AppTile(
 private fun PageDots(count: Int, selected: Int, accent: Color, onSelect: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
         repeat(count) { index ->
-            val width by animateFloatAsState(if (index == selected) 19f else 6f, tween(360, easing = FastOutSlowInEasing), label = "orbit-page-dot")
+            val width by animateFloatAsState(
+                if (index == selected) 19f else 6f,
+                spring(dampingRatio = 0.78f, stiffness = 520f),
+                label = "orbit-page-dot"
+            )
             Box(Modifier.padding(horizontal = 3.dp).size(width.dp, 6.dp).clip(CircleShape)
                 .background(if (index == selected) accent else Color(0x668DA2C5)).clickable { onSelect(index) })
         }
@@ -581,8 +603,25 @@ private fun Dock(
     ) {
         apps.take(5).forEach { app ->
             val icon = app.icon
-            Image(icon, app.label, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(12.dp))
-                .combinedClickable(onClick = { onLaunch(app) }, onLongClick = { onLongPress(app) }), contentScale = ContentScale.Fit)
+            val interactionSource = remember(app.packageName) { MutableInteractionSource() }
+            val pressed by interactionSource.collectIsPressedAsState()
+            val pressScale by animateFloatAsState(
+                targetValue = if (pressed) 0.88f else 1f,
+                animationSpec = spring(dampingRatio = 0.68f, stiffness = 560f),
+                label = "orbit-dock-press"
+            )
+            Image(
+                icon, app.label,
+                modifier = Modifier.size(42.dp)
+                    .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
+                    .clip(RoundedCornerShape(12.dp))
+                    .combinedClickable(
+                        interactionSource = interactionSource,
+                        onClick = { onLaunch(app) },
+                        onLongClick = { onLongPress(app) }
+                    ),
+                contentScale = ContentScale.Fit
+            )
         }
         if (apps.isNotEmpty()) Box(Modifier.width(1.dp).height(34.dp).background(Color(0x668CA5C8)))
         Box(
@@ -663,7 +702,7 @@ private fun AppDrawer(
                     contentPadding = PaddingValues(top = 8.dp, bottom = 22.dp),
                     horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(15.dp)
                 ) {
-                    items(filtered, key = { it.packageName }) { app ->
+                    items(filtered, key = { it.packageName }, contentType = { "app" }) { app ->
                         AppTile(app, accent, showLabels, compact = true, onClick = { onLaunch(app) }, onLongClick = { onLongPress(app) })
                     }
                 }
@@ -679,7 +718,9 @@ private fun SearchOverlay(
     accent: Color, onDismiss: () -> Unit, onLaunch: (LaunchableApp) -> Unit,
     onLongPress: (LaunchableApp) -> Unit
 ) {
-    val matches = if (search.isBlank()) apps.take(12) else apps.filter { it.label.contains(search, ignoreCase = true) }
+    val matches = remember(apps, search) {
+        if (search.isBlank()) apps.take(12) else apps.filter { it.label.contains(search, ignoreCase = true) }
+    }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(Modifier.fillMaxSize().background(Color(0xD9142035)).border(1.dp, Color(0x55FFFFFF)).statusBarsPadding().padding(horizontal = 20.dp, vertical = 20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -696,7 +737,7 @@ private fun SearchOverlay(
             Text(if (search.isBlank()) "SUGGESTED" else "${matches.size} RESULTS", color = Color(0xFF8DA0BD), fontSize = 10.sp, letterSpacing = 1.8.sp)
             Spacer(Modifier.height(8.dp))
             LazyVerticalGrid(columns = GridCells.Fixed(4), modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                items(matches, key = { it.packageName }) { app ->
+                items(matches, key = { it.packageName }, contentType = { "app" }) { app ->
                     AppTile(app, accent, true, compact = true, onClick = { onLaunch(app) }, onLongClick = { onLongPress(app) })
                 }
             }
