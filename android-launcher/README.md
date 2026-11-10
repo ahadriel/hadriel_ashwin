@@ -38,9 +38,9 @@ The repository workflow also copies the APK to the repository's `appbuild/launch
 ## Install and set as default
 
 1. Install `launcher.apk` on an Android 10+ device.
-2. Press the device's Home button.
-3. Choose **ORBIT Launcher** when Android asks which Home app to use.
-4. Select **Always** to make ORBIT the default.
+2. Open ORBIT. If it is not already the default, tap **SET UP** on the home-screen prompt, or open Settings → Home App → **SET ORBIT AS DEFAULT**.
+3. Confirm Android's system Home-app role prompt.
+4. Press the device's Home button; ORBIT should now open.
 5. To switch back, open Android Settings → Apps → Default apps → Home app.
 
 ## Controls
