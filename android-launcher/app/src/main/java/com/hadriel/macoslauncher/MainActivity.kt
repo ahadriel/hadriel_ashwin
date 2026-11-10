@@ -121,6 +121,15 @@ private fun OrbitLauncher() {
     val homeRoleRequest = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         isDefaultLauncher = isDefaultHome(context)
     }
+    val requestDefaultLauncher: () -> Unit = {
+        val roleManager = context.getSystemService(RoleManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) {
+            homeRoleRequest.launch(roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME))
+        } else {
+            runCatching { context.startActivity(Intent(Settings.ACTION_HOME_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        }
+    }
     val preferences by context.launcherStore.data.collectAsStateWithLifecycle(initialValue = emptyPreferences())
 
     var apps by remember { mutableStateOf<List<LaunchableApp>>(emptyList()) }
@@ -260,6 +269,27 @@ private fun OrbitLauncher() {
                     }
                 }
 
+                if (!isDefaultLauncher) {
+                    Surface(
+                        onClick = requestDefaultLauncher,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 5.dp),
+                        shape = RoundedCornerShape(17.dp),
+                        color = Color(0x554D779A),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x668FCBFF))
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("MAKE ORBIT YOUR HOME", color = accent, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                                Text("Set ORBIT as your default launcher", color = Color(0xFFEAF2FF), fontSize = 11.sp)
+                            }
+                            Text("SET UP  →", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     if (homeApps.isEmpty()) {
                         EmptyHome(onExplore = { drawerOpen = true }, loading = isRefreshing)
@@ -342,15 +372,7 @@ private fun OrbitLauncher() {
                         }
                     },
                     isDefaultLauncher = isDefaultLauncher,
-                    onSetDefaultLauncher = {
-                        val roleManager = context.getSystemService(RoleManager::class.java)
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-                            roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) {
-                            homeRoleRequest.launch(roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME))
-                        } else {
-                            runCatching { context.startActivity(Intent(Settings.ACTION_HOME_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                        }
-                    },
+                    onSetDefaultLauncher = requestDefaultLauncher,
                     onDismiss = { settingsOpen = false }
                 )
             }
