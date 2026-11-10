@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.app.role.RoleManager
 import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.BatteryManager
@@ -13,6 +14,8 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -42,6 +45,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -112,6 +117,10 @@ class MainActivity : ComponentActivity() {
 private fun OrbitLauncher() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var isDefaultLauncher by remember { mutableStateOf(isDefaultHome(context)) }
+    val homeRoleRequest = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        isDefaultLauncher = isDefaultHome(context)
+    }
     val preferences by context.launcherStore.data.collectAsStateWithLifecycle(initialValue = emptyPreferences())
 
     var apps by remember { mutableStateOf<List<LaunchableApp>>(emptyList()) }
@@ -332,6 +341,16 @@ private fun OrbitLauncher() {
                             isRefreshing = false
                         }
                     },
+                    isDefaultLauncher = isDefaultLauncher,
+                    onSetDefaultLauncher = {
+                        val roleManager = context.getSystemService(RoleManager::class.java)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                            roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) {
+                            homeRoleRequest.launch(roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME))
+                        } else {
+                            runCatching { context.startActivity(Intent(Settings.ACTION_HOME_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                        }
+                    },
                     onDismiss = { settingsOpen = false }
                 )
             }
@@ -363,6 +382,18 @@ private fun OrbitLauncher() {
             }
         }
     }
+}
+
+private fun isDefaultHome(context: Context): Boolean {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val roleManager = context.getSystemService(RoleManager::class.java)
+        if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) {
+            return roleManager.isRoleHeld(RoleManager.ROLE_HOME)
+        }
+    }
+    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+    val resolved = context.packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+    return resolved?.activityInfo?.packageName == context.packageName
 }
 
 private fun greeting(): String {
@@ -466,7 +497,8 @@ private fun AppTile(
     ) {
         Box(
             Modifier.size(if (compact) 54.dp else 66.dp).clip(RoundedCornerShape(if (compact) 16.dp else 19.dp))
-                .background(Color(0x221E3352)),
+                .background(Brush.linearGradient(listOf(Color(0x443D6387), Color(0x22202D48))))
+                .border(1.dp, Color(0x338FCBFF), RoundedCornerShape(if (compact) 16.dp else 19.dp)),
             contentAlignment = Alignment.Center
         ) {
             Image(icon, app.label, modifier = Modifier.size(if (compact) 43.dp else 55.dp).clip(RoundedCornerShape(14.dp)), contentScale = ContentScale.Fit)
@@ -497,7 +529,10 @@ private fun Dock(
 ) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 22.dp).navigationBarsPadding()
-            .clip(RoundedCornerShape(25.dp)).background(Color(0x77202D45))
+            .shadow(22.dp, RoundedCornerShape(25.dp))
+            .clip(RoundedCornerShape(25.dp))
+            .background(Brush.verticalGradient(listOf(Color(0x885D83A8), Color(0x55263854), Color(0x44303B58))))
+            .border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(25.dp))
             .padding(horizontal = 10.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically
     ) {
@@ -541,11 +576,13 @@ private fun AppDrawer(
         DrawerTab.PINNED -> favorites
         DrawerTab.HIDDEN -> hiddenApps
     }.filter { it.label.contains(search, ignoreCase = true) }
-    Box(Modifier.fillMaxSize().background(Color(0xCC050914)).clickable(onClick = onDismiss), contentAlignment = Alignment.BottomCenter) {
+    Box(Modifier.fillMaxSize().background(Color(0x99050A14)).clickable(onClick = onDismiss), contentAlignment = Alignment.BottomCenter) {
         Column(
             Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(top = 12.dp, start = 14.dp, end = 14.dp, bottom = 8.dp)
                 .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
-                .background(Color(0xF0141E31)).clickable { }.padding(horizontal = 18.dp, vertical = 18.dp)
+                .background(Brush.verticalGradient(listOf(Color(0xE62D4563), Color(0xE61A2942), Color(0xE6101A2D))))
+                .border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+                .clickable { }.padding(horizontal = 18.dp, vertical = 18.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -599,7 +636,7 @@ private fun SearchOverlay(
 ) {
     val matches = if (search.isBlank()) apps.take(12) else apps.filter { it.label.contains(search, ignoreCase = true) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.fillMaxSize().background(Color(0xF20B1222)).statusBarsPadding().padding(horizontal = 20.dp, vertical = 20.dp)) {
+        Column(Modifier.fillMaxSize().background(Color(0xD9142035)).border(1.dp, Color(0x55FFFFFF)).statusBarsPadding().padding(horizontal = 20.dp, vertical = 20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("QUICK FIND", color = accent, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, modifier = Modifier.weight(1f))
                 IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Close search", tint = Color.White) }
@@ -660,7 +697,7 @@ private fun SettingsDialog(
     accentIndex: Int, wallpaperIndex: Int, columns: Int, showLabels: Boolean, clock24: Boolean,
     onAccent: (Int) -> Unit, onWallpaper: (Int) -> Unit, onColumns: (Int) -> Unit,
     onLabels: (Boolean) -> Unit, onClock24: (Boolean) -> Unit, onRefreshApps: () -> Unit,
-    onDismiss: () -> Unit
+    isDefaultLauncher: Boolean, onSetDefaultLauncher: () -> Unit, onDismiss: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss, containerColor = Color(0xFF151F33),
@@ -707,6 +744,20 @@ private fun SettingsDialog(
                 SettingsSection("DISPLAY") {
                     SettingSwitch("Show app names", showLabels, onLabels)
                     SettingSwitch("24-hour clock", clock24, onClock24)
+                }
+                SettingsSection("HOME APP") {
+                    Text(
+                        if (isDefaultLauncher) "ORBIT is your current Home app." else "Make ORBIT the app that opens when you press Home.",
+                        color = Color(0xFFB9C8DD), fontSize = 12.sp
+                    )
+                    Button(
+                        onClick = onSetDefaultLauncher,
+                        enabled = !isDefaultLauncher,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentChoices[accentIndex], contentColor = Color(0xFF081321), disabledContainerColor = Color(0xFF30445E), disabledContentColor = Color(0xFFB9C8DD))
+                    ) {
+                        Text(if (isDefaultLauncher) "ORBIT IS DEFAULT" else "SET ORBIT AS DEFAULT")
+                    }
                 }
                 SettingsSection("APP LIBRARY") {
                     TextButton(onClick = onRefreshApps) { Text("Refresh installed apps", color = AccentChoices[accentIndex]) }
