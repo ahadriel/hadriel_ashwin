@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.app.role.RoleManager
-import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
@@ -47,7 +46,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -98,7 +99,7 @@ private val WallpaperChoices = listOf(
     listOf(Color(0xFF111018), Color(0xFF4A2C43), Color(0xFF191827))
 )
 
-data class LaunchableApp(val packageName: String, val label: String, val icon: Drawable)
+data class LaunchableApp(val packageName: String, val label: String, val icon: ImageBitmap)
 private enum class DrawerTab { ALL, PINNED, HIDDEN }
 
 class MainActivity : ComponentActivity() {
@@ -203,7 +204,8 @@ private fun OrbitLauncher() {
     }
 
     val pageSize = columns * 5
-    val pageCount = maxOf(1, (homeApps.size + pageSize - 1) / pageSize)
+    val homePages = remember(homeApps, pageSize) { homeApps.chunked(pageSize) }
+    val pageCount = maxOf(1, homePages.size)
     val pagerState = rememberPagerState(
         initialPage = (preferences[HomePageKey] ?: 0).coerceIn(0, pageCount - 1),
         pageCount = { pageCount }
@@ -242,16 +244,30 @@ private fun OrbitLauncher() {
                     center = androidx.compose.ui.geometry.Offset(0f, 1450f), radius = 950f
                 )
             ))
+            Canvas(Modifier.fillMaxSize()) {
+                val cx = size.width * 0.92f
+                val cy = size.height * 0.24f
+                val base = size.width * 0.23f
+                drawCircle(Color.White.copy(alpha = 0.055f), base, androidx.compose.ui.geometry.Offset(cx, cy), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx()))
+                drawCircle(accent.copy(alpha = 0.10f), base * 0.72f, androidx.compose.ui.geometry.Offset(cx, cy), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx()))
+                drawCircle(Color.White.copy(alpha = 0.035f), base * 1.24f, androidx.compose.ui.geometry.Offset(cx, cy), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx()))
+                drawCircle(accent.copy(alpha = 0.34f), 3.dp.toPx(), androidx.compose.ui.geometry.Offset(cx - base * 0.58f, cy - base * 0.82f))
+                drawCircle(Color.White.copy(alpha = 0.22f), 2.dp.toPx(), androidx.compose.ui.geometry.Offset(cx + base * 0.92f, cy + base * 0.18f))
+            }
 
             Column(Modifier.fillMaxSize()) {
                 TopBar(clock, date, battery, accent, { searchOpen = true }, { settingsOpen = true })
 
                 Row(
-                    Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 18.dp, bottom = 8.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp)
+                        .clip(RoundedCornerShape(26.dp))
+                        .background(Brush.horizontalGradient(listOf(Color(0x884C7098), Color(0x55304B70), Color(0x33202F4B))))
+                        .border(1.dp, Color(0x667CCBFF), RoundedCornerShape(26.dp))
+                        .padding(horizontal = 16.dp, vertical = 15.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("YOUR SPACE", color = accent, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.4.sp)
+                        Text("◈  ORBIT / PERSONAL OS", color = accent, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.7.sp)
                         Text("Good " + greeting() + ",", color = Color(0xFFB6C4DA), fontSize = 13.sp)
                         Text("what's the plan?", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.7).sp)
                     }
@@ -299,9 +315,10 @@ private fun OrbitLauncher() {
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(horizontal = 18.dp),
                             pageSpacing = 8.dp,
-                            key = { it }
+                            key = { it },
+                            beyondViewportPageCount = 1
                         ) { page ->
-                            val pageApps = homeApps.drop(page * pageSize).take(pageSize)
+                            val pageApps = homePages.getOrNull(page).orEmpty()
                             LazyVerticalGrid(
                                 columns = GridCells.Fixed(columns),
                                 modifier = Modifier.fillMaxSize(),
@@ -434,7 +451,7 @@ private fun loadLaunchableApps(context: Context): List<LaunchableApp> {
     return pm.queryIntentActivities(query, PackageManager.MATCH_ALL)
         .mapNotNull { info ->
             val activityInfo = info.activityInfo ?: return@mapNotNull null
-            LaunchableApp(activityInfo.packageName, info.loadLabel(pm).toString(), info.loadIcon(pm))
+            LaunchableApp(activityInfo.packageName, info.loadLabel(pm).toString(), info.loadIcon(pm).toBitmap(96, 96).asImageBitmap())
         }
         .filterNot { it.packageName == context.packageName }
         .distinctBy { it.packageName }
@@ -511,7 +528,7 @@ private fun AppTile(
     app: LaunchableApp, accent: Color, showLabel: Boolean, compact: Boolean = false,
     onClick: () -> Unit, onLongClick: () -> Unit
 ) {
-    val icon = remember(app.packageName) { app.icon.toBitmap(144, 144).asImageBitmap() }
+    val icon = app.icon
     Column(
         Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(vertical = if (compact) 3.dp else 5.dp),
@@ -551,7 +568,7 @@ private fun Dock(
 ) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 22.dp).navigationBarsPadding()
-            .shadow(22.dp, RoundedCornerShape(25.dp))
+            .shadow(12.dp, RoundedCornerShape(25.dp))
             .clip(RoundedCornerShape(25.dp))
             .background(Brush.verticalGradient(listOf(Color(0x885D83A8), Color(0x55263854), Color(0x44303B58))))
             .border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(25.dp))
@@ -559,7 +576,7 @@ private fun Dock(
         horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically
     ) {
         apps.take(5).forEach { app ->
-            val icon = remember(app.packageName) { app.icon.toBitmap(112, 112).asImageBitmap() }
+            val icon = app.icon
             Image(icon, app.label, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(12.dp))
                 .combinedClickable(onClick = { onLaunch(app) }, onLongClick = { onLongPress(app) }), contentScale = ContentScale.Fit)
         }
@@ -593,11 +610,13 @@ private fun AppDrawer(
     onLaunch: (LaunchableApp) -> Unit, onLongPress: (LaunchableApp) -> Unit
 ) {
     val hiddenNames = remember(hiddenApps) { hiddenApps.map { it.packageName }.toSet() }
-    val filtered = when (tab) {
-        DrawerTab.ALL -> apps.filterNot { it.packageName in hiddenNames }
-        DrawerTab.PINNED -> favorites
-        DrawerTab.HIDDEN -> hiddenApps
-    }.filter { it.label.contains(search, ignoreCase = true) }
+    val filtered = remember(tab, apps, favorites, hiddenApps, hiddenNames, search) {
+        when (tab) {
+            DrawerTab.ALL -> apps.filterNot { it.packageName in hiddenNames }
+            DrawerTab.PINNED -> favorites
+            DrawerTab.HIDDEN -> hiddenApps
+        }.filter { it.label.contains(search, ignoreCase = true) }
+    }
     Box(Modifier.fillMaxSize().background(Color(0x99050A14)).clickable(onClick = onDismiss), contentAlignment = Alignment.BottomCenter) {
         Column(
             Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(top = 12.dp, start = 14.dp, end = 14.dp, bottom = 8.dp)
@@ -687,7 +706,7 @@ private fun AppActionsDialog(
     onDismiss: () -> Unit, onOpen: () -> Unit, onFavorite: () -> Unit,
     onHide: () -> Unit, onInfo: () -> Unit, onUninstall: () -> Unit
 ) {
-    val icon = remember(app.packageName) { app.icon.toBitmap(128, 128).asImageBitmap() }
+    val icon = app.icon
     AlertDialog(
         onDismissRequest = onDismiss, containerColor = Color(0xFF18243A),
         titleContentColor = Color.White, textContentColor = Color(0xFFB8C7DC),
