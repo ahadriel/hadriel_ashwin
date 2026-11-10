@@ -11,6 +11,10 @@ on:
       - ".github/workflows/build-android-launcher.yml"
   workflow_dispatch:
 
+concurrency:
+  group: orbit-launcher-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
