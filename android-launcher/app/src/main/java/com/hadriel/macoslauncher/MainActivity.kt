@@ -550,6 +550,7 @@ private fun AppTile(
             .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
             .combinedClickable(
                 interactionSource = interactionSource,
+                indication = null,
                 onClick = onClick,
                 onLongClick = onLongClick
             )
@@ -617,6 +618,7 @@ private fun Dock(
                     .clip(RoundedCornerShape(12.dp))
                     .combinedClickable(
                         interactionSource = interactionSource,
+                        indication = null,
                         onClick = { onLaunch(app) },
                         onLongClick = { onLongPress(app) }
                     ),
