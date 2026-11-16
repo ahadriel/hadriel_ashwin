@@ -1,5 +1,6 @@
 package com.hadriel.macoslauncher
 
+import android.app.Activity
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -16,6 +17,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.spring
@@ -37,6 +43,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.BatteryFull
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Brightness6
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -91,6 +105,7 @@ private val AccentKey = intPreferencesKey("accent_index")
 private val WallpaperKey = intPreferencesKey("wallpaper_index")
 private val LabelsKey = booleanPreferencesKey("show_labels")
 private val Clock24Key = booleanPreferencesKey("clock_24h")
+private val AnimationsKey = booleanPreferencesKey("ambient_animations")
 
 private val AccentChoices = listOf(
     Color(0xFF83B8FF), Color(0xFF71E0D0), Color(0xFFB8A0FF),
@@ -115,7 +130,7 @@ class MainActivity : ComponentActivity() {
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = false
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightNavigationBars = false
-        setContent { OrbitHomeOs() }
+        setContent { OrbitLauncher() }
     }
 }
 
@@ -188,6 +203,7 @@ private fun OrbitLauncher() {
     val wallpaper = WallpaperChoices[(preferences[WallpaperKey] ?: 0).coerceIn(WallpaperChoices.indices)]
     val showLabels = preferences[LabelsKey] ?: true
     val clock24 = preferences[Clock24Key] ?: false
+    val animationsEnabled = preferences[AnimationsKey] ?: true
 
     var drawerOpen by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
@@ -198,6 +214,8 @@ private fun OrbitLauncher() {
     var clock by remember { mutableStateOf("") }
     var date by remember { mutableStateOf("") }
     var battery by remember { mutableIntStateOf(100) }
+    var quickSettingsOpen by remember { mutableStateOf(false) }
+    var lockScreenOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(clock24) {
         while (true) {
@@ -223,8 +241,10 @@ private fun OrbitLauncher() {
         context.launcherStore.edit { it[HomePageKey] = pagerState.currentPage }
     }
 
-    BackHandler(enabled = drawerOpen || settingsOpen || searchOpen || selectedApp != null) {
+    BackHandler(enabled = drawerOpen || settingsOpen || searchOpen || selectedApp != null || quickSettingsOpen || lockScreenOpen) {
         when {
+            lockScreenOpen -> lockScreenOpen = false
+            quickSettingsOpen -> quickSettingsOpen = false
             selectedApp != null -> selectedApp = null
             settingsOpen -> settingsOpen = false
             searchOpen -> { searchOpen = false; searchText = "" }
@@ -241,6 +261,19 @@ private fun OrbitLauncher() {
         onSurface = Color(0xFFF2F6FF)
     )) {
         Box(Modifier.fillMaxSize().background(Brush.linearGradient(wallpaper))) {
+            if (animationsEnabled) {
+                val ambient = rememberInfiniteTransition(label = "orbit-ambient")
+                val drift by ambient.animateFloat(initialValue = 0f, targetValue = 1f,
+                    animationSpec = infiniteRepeatable(animation = tween(22000, easing = LinearEasing), repeatMode = RepeatMode.Restart),
+                    label = "orbit-drift")
+                Canvas(Modifier.fillMaxSize()) {
+                    val x = size.width * (0.12f + 0.76f * drift)
+                    val y = size.height * (0.18f + 0.10f * kotlin.math.sin(drift * 6.28318f))
+                    drawCircle(accent.copy(alpha = 0.055f), size.minDimension * 0.34f, androidx.compose.ui.geometry.Offset(x, y))
+                    drawCircle(Color(0xFF6E9DCE).copy(alpha = 0.035f), size.minDimension * 0.25f,
+                        androidx.compose.ui.geometry.Offset(size.width - x * 0.72f, size.height * (0.76f - 0.08f * kotlin.math.sin(drift * 6.28318f))))
+                }
+            }
             Box(Modifier.fillMaxSize().background(
                 Brush.radialGradient(
                     colors = listOf(accent.copy(alpha = 0.20f), Color.Transparent),
@@ -265,7 +298,12 @@ private fun OrbitLauncher() {
             }
 
             Column(Modifier.fillMaxSize()) {
-                TopBar(clock, date, battery, accent, { searchOpen = true }, { settingsOpen = true })
+                TopBar(clock, date, battery, accent, { searchOpen = true }, { settingsOpen = true }, { quickSettingsOpen = true }, { lockScreenOpen = true })
+                QuickAccessMenu(accent, { drawerOpen = true }, { searchOpen = true },
+                    { openSystemPanel(context, Settings.ACTION_WIFI_SETTINGS) },
+                    { openSystemPanel(context, Settings.ACTION_BLUETOOTH_SETTINGS) },
+                    { openSystemPanel(context, Settings.ACTION_SOUND_SETTINGS) },
+                    { settingsOpen = true }, { lockScreenOpen = true })
 
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp)
@@ -355,7 +393,24 @@ private fun OrbitLauncher() {
                     onLaunch = { launchApp(context, it) },
                     onLongPress = { selectedApp = it }
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(5.dp))
+                OrbitNavigationBar(accent,
+                    onBack = { (context as? Activity)?.onBackPressedDispatcher?.onBackPressed() },
+                    onHome = { scope.launch { pagerState.animateScrollToPage(0) } },
+                    onApps = { drawerOpen = true })
+                Spacer(Modifier.height(5.dp))
+            }
+
+            if (quickSettingsOpen) {
+                QuickSettingsPanel(accent, { quickSettingsOpen = false },
+                    { quickSettingsOpen = false; openSystemPanel(context, Settings.ACTION_WIFI_SETTINGS) },
+                    { quickSettingsOpen = false; openSystemPanel(context, Settings.ACTION_BLUETOOTH_SETTINGS) },
+                    { quickSettingsOpen = false; openSystemPanel(context, Settings.ACTION_SOUND_SETTINGS) },
+                    { quickSettingsOpen = false; openSystemPanel(context, Settings.ACTION_DISPLAY_SETTINGS) },
+                    { quickSettingsOpen = false; settingsOpen = true })
+            }
+            if (lockScreenOpen) {
+                OrbitLockScreen(clock, date, battery, accent, wallpaper) { lockScreenOpen = false }
             }
 
             if (drawerOpen) {
@@ -390,6 +445,8 @@ private fun OrbitLauncher() {
                     onColumns = { value -> scope.launch { context.launcherStore.edit { it[GridColumnsKey] = value; it[HomePageKey] = 0 } } },
                     onLabels = { value -> scope.launch { context.launcherStore.edit { it[LabelsKey] = value } } },
                     onClock24 = { value -> scope.launch { context.launcherStore.edit { it[Clock24Key] = value } } },
+                    animationsEnabled = animationsEnabled,
+                    onAnimations = { value -> scope.launch { context.launcherStore.edit { it[AnimationsKey] = value } } },
                     onRefreshApps = {
                         refreshApps()
                     },
@@ -489,8 +546,106 @@ private fun uninstallApp(context: Context, app: LaunchableApp) {
     }
 }
 
+
+
 @Composable
-private fun TopBar(time: String, date: String, battery: Int, accent: Color, onSearch: () -> Unit, onSettings: () -> Unit) {
+private fun QuickAccessMenu(accent: Color, onApps: () -> Unit, onSearch: () -> Unit, onWifi: () -> Unit,
+    onBluetooth: () -> Unit, onSound: () -> Unit, onThemes: () -> Unit, onLock: () -> Unit) {
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 13.dp, vertical = 3.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        QuickMenuChip("Apps", Icons.Default.Apps, accent, onApps)
+        QuickMenuChip("Search", Icons.Default.Search, accent, onSearch)
+        QuickMenuChip("Wi-Fi", Icons.Default.Wifi, accent, onWifi)
+        QuickMenuChip("Bluetooth", Icons.Default.Bluetooth, accent, onBluetooth)
+        QuickMenuChip("Sound", Icons.Default.VolumeUp, accent, onSound)
+        QuickMenuChip("Themes", Icons.Default.Brightness6, accent, onThemes)
+        QuickMenuChip("Lock", Icons.Default.Lock, accent, onLock)
+    }
+}
+@Composable
+private fun QuickMenuChip(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, accent: Color, onClick: () -> Unit) {
+    Surface(onClick = onClick, shape = RoundedCornerShape(16.dp), color = Color(0x44334C6D),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x335F8BB7))) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = accent, modifier = Modifier.size(15.dp)); Spacer(Modifier.width(6.dp))
+            Text(label, color = Color(0xFFE6EFFC), fontSize = 10.sp, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+@Composable
+private fun OrbitNavigationBar(accent: Color, onBack: () -> Unit, onHome: () -> Unit, onApps: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 92.dp, vertical = 2.dp).clip(RoundedCornerShape(22.dp))
+        .background(Color(0x55485F7F)).border(1.dp, Color(0x447CA4D0), RoundedCornerShape(22.dp))
+        .padding(horizontal = 10.dp, vertical = 3.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = Color(0xFFDCE8F8), modifier = Modifier.size(18.dp)) }
+        IconButton(onClick = onHome) { Icon(Icons.Default.Home, "Home", tint = accent, modifier = Modifier.size(20.dp)) }
+        IconButton(onClick = onApps) { Icon(Icons.Default.Apps, "App library", tint = Color(0xFFDCE8F8), modifier = Modifier.size(19.dp)) }
+    }
+}
+@Composable
+private fun QuickSettingsPanel(accent: Color, onDismiss: () -> Unit, onWifi: () -> Unit, onBluetooth: () -> Unit,
+    onSound: () -> Unit, onDisplay: () -> Unit, onPersonalise: () -> Unit) {
+    Box(Modifier.fillMaxSize().background(Color(0x99040A15)).clickable(onClick = onDismiss), contentAlignment = Alignment.TopCenter) {
+        Column(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xF02D4565), Color(0xF018263D))))
+            .border(1.dp, Color(0x557DA9D3), RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))
+            .clickable { }.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("ORBIT CONTROL CENTRE", color = accent, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.8.sp)
+                    Text("Quick settings", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                }
+                TextButton(onClick = onDismiss) { Text("Done", color = accent) }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                QuickSettingTile("Wi-Fi", Icons.Default.Wifi, accent, onWifi, Modifier.weight(1f))
+                QuickSettingTile("Bluetooth", Icons.Default.Bluetooth, accent, onBluetooth, Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                QuickSettingTile("Sound", Icons.Default.VolumeUp, accent, onSound, Modifier.weight(1f))
+                QuickSettingTile("Display", Icons.Default.Brightness6, accent, onDisplay, Modifier.weight(1f))
+            }
+            Button(onClick = onPersonalise, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Tune, null); Spacer(Modifier.width(8.dp)); Text("Personalise ORBIT")
+            }
+            Text("System controls open Android settings. ORBIT does not silently change protected system settings.", color = Color(0xFF9FB0C8), fontSize = 10.sp)
+        }
+    }
+}
+@Composable
+private fun QuickSettingTile(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, accent: Color, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(onClick = onClick, modifier = modifier.height(76.dp), shape = RoundedCornerShape(18.dp),
+        color = Color(0x553C587A), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x447FA8D1))) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            Icon(icon, null, tint = accent, modifier = Modifier.size(20.dp))
+            Text(label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+@Composable
+private fun OrbitLockScreen(time: String, date: String, battery: Int, accent: Color, wallpaper: List<Color>, onUnlock: () -> Unit) {
+    Box(Modifier.fillMaxSize().background(Brush.linearGradient(wallpaper)).clickable(onClick = onUnlock)) {
+        Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(accent.copy(alpha = 0.25f), Color.Transparent), radius = 1100f)))
+        Column(Modifier.align(Alignment.Center).padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("ORBIT", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 5.sp)
+            Spacer(Modifier.height(18.dp))
+            Text(time, color = Color.White, fontSize = 76.sp, fontWeight = FontWeight.ExtraLight, letterSpacing = (-3).sp)
+            Text(date, color = Color(0xFFD4E0F1), fontSize = 16.sp)
+            Spacer(Modifier.height(24.dp))
+            Text("BATTERY  $battery%", color = Color(0xFFB8C8DD), fontSize = 10.sp, letterSpacing = 2.sp)
+            Spacer(Modifier.height(70.dp))
+            Button(onClick = onUnlock, shape = RoundedCornerShape(22.dp)) { Text("SWIPE / TAP TO ENTER") }
+            Text("ORBIT visual lock screen · Android security remains active", color = Color(0xFF91A3BD), fontSize = 9.sp, modifier = Modifier.padding(top = 14.dp))
+        }
+    }
+}
+private fun openSystemPanel(context: Context, action: String) {
+    runCatching { context.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+}
+
+@Composable
+private fun TopBar(time: String, date: String, battery: Int, accent: Color, onSearch: () -> Unit, onSettings: () -> Unit, onQuickSettings: () -> Unit, onLock: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 14.dp, vertical = 7.dp)
             .clip(RoundedCornerShape(22.dp))
@@ -527,6 +682,8 @@ private fun TopBar(time: String, date: String, battery: Int, accent: Color, onSe
         }
         Spacer(Modifier.width(5.dp))
         IconButton(onClick = onSearch, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Search, "Search apps", tint = Color(0xFFEAF2FF), modifier = Modifier.size(20.dp)) }
+        IconButton(onClick = onQuickSettings, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Tune, "Quick settings", tint = Color(0xFFEAF2FF), modifier = Modifier.size(19.dp)) }
+        IconButton(onClick = onLock, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Lock, "ORBIT lock screen", tint = Color(0xFFEAF2FF), modifier = Modifier.size(18.dp)) }
         IconButton(onClick = onSettings, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Settings, "Launcher settings", tint = Color(0xFFEAF2FF), modifier = Modifier.size(19.dp)) }
     }
 }
@@ -784,7 +941,7 @@ private fun AppActionsDialog(
 private fun SettingsDialog(
     accentIndex: Int, wallpaperIndex: Int, columns: Int, showLabels: Boolean, clock24: Boolean,
     onAccent: (Int) -> Unit, onWallpaper: (Int) -> Unit, onColumns: (Int) -> Unit,
-    onLabels: (Boolean) -> Unit, onClock24: (Boolean) -> Unit, onRefreshApps: () -> Unit,
+    onLabels: (Boolean) -> Unit, onClock24: (Boolean) -> Unit, animationsEnabled: Boolean, onAnimations: (Boolean) -> Unit, onRefreshApps: () -> Unit,
     isDefaultLauncher: Boolean, onSetDefaultLauncher: () -> Unit, onDismiss: () -> Unit
 ) {
     AlertDialog(
@@ -832,6 +989,7 @@ private fun SettingsDialog(
                 SettingsSection("DISPLAY") {
                     SettingSwitch("Show app names", showLabels, onLabels)
                     SettingSwitch("24-hour clock", clock24, onClock24)
+                    SettingSwitch("Subtle moving background", animationsEnabled, onAnimations)
                 }
                 SettingsSection("HOME APP") {
                     Text(
