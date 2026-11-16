@@ -115,7 +115,7 @@ class MainActivity : ComponentActivity() {
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = false
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightNavigationBars = false
-        setContent { OrbitLauncher() }
+        setContent { OrbitHomeOs() }
     }
 }
 
