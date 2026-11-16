@@ -396,7 +396,14 @@ private fun OrbitLauncher() {
                 )
                 Spacer(Modifier.height(5.dp))
                 OrbitNavigationBar(accent,
-                    onBack = { (context as? Activity)?.onBackPressedDispatcher?.onBackPressed() },
+                    onBack = {
+                        when {
+                            drawerOpen -> drawerOpen = false
+                            settingsOpen -> settingsOpen = false
+                            searchOpen -> searchOpen = false
+                            pagerState.currentPage > 0 -> scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
+                        }
+                    },
                     onHome = { scope.launch { pagerState.animateScrollToPage(0) } },
                     onApps = { drawerOpen = true })
                 Spacer(Modifier.height(5.dp))
