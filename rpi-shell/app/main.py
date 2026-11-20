@@ -70,7 +70,6 @@ class PiShell(Gtk.Window):
         self.config = load_config()
         self.set_decorated(False)
         self.fullscreen()
-        self.set_keep_above(True)
         self.connect("key-press-event", self.on_key)
         self.connect("destroy", Gtk.main_quit)
 
