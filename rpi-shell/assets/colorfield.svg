@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+<defs>
+  <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#092c54"/><stop offset=".35" stop-color="#146b91"/><stop offset=".68" stop-color="#e56d62"/><stop offset="1" stop-color="#f7b45a"/></linearGradient>
+  <linearGradient id="mountain" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#354d83"/><stop offset="1" stop-color="#17294d"/></linearGradient>
+  <linearGradient id="lake" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#29a8bd"/><stop offset="1" stop-color="#123c66"/></linearGradient>
+  <radialGradient id="sun"><stop stop-color="#fff8cf"/><stop offset=".55" stop-color="#ffd58a"/><stop offset="1" stop-color="#ff9b70" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="1920" height="1080" fill="url(#sky)"/>
+<circle cx="1430" cy="330" r="260" fill="url(#sun)"/>
+<path d="M0 620L220 390 390 570 620 290 850 590 1080 360 1290 610 1510 390 1740 590 1920 430V1080H0Z" fill="#273d6b" opacity=".75"/>
+<path d="M0 720L260 510 480 690 760 430 1030 720 1290 500 1540 700 1770 490 1920 620V1080H0Z" fill="url(#mountain)"/>
+<path d="M0 700Q460 650 900 710T1920 680V1080H0Z" fill="url(#lake)"/>
+<path d="M0 820Q400 760 800 830T1600 800T1920 830" fill="none" stroke="#8de8e2" stroke-width="5" opacity=".45"/>
+<path d="M0 900Q500 840 960 910T1920 890" fill="none" stroke="#ffd39b" stroke-width="4" opacity=".35"/>
+<g fill="#f8c47d" opacity=".55"><circle cx="210" cy="180" r="5"/><circle cx="330" cy="250" r="3"/><circle cx="700" cy="160" r="4"/><circle cx="1060" cy="220" r="3"/><circle cx="1680" cy="180" r="5"/></g>
+</svg>
