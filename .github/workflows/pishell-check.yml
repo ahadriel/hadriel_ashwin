@@ -1,0 +1,29 @@
+name: PiShell checks
+
+on:
+  push:
+    branches:
+      - feature/rpi-lightweight-shell
+    paths:
+      - "rpi-shell/**"
+      - ".github/workflows/pishell-check.yml"
+  pull_request:
+    paths:
+      - "rpi-shell/**"
+      - ".github/workflows/pishell-check.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Python syntax
+        run: python3 -m py_compile rpi-shell/app/main.py
+      - name: Validate shell scripts
+        run: |
+          bash -n rpi-shell/install.sh
+          bash -n rpi-shell/uninstall.sh
+      - name: Validate default configuration
+        run: python3 -m json.tool rpi-shell/config.default.json >/dev/null
+      - name: Validate wallpaper SVG
+        run: python3 -c "import xml.etree.ElementTree as ET; ET.parse('rpi-shell/assets/colorfield.svg')"
