@@ -24,7 +24,7 @@ Use the 64-bit Raspberry Pi OS desktop session:
 ```bash
 git clone --branch feature/rpi-lightweight-shell https://github.com/ahadriel/hadriel_ashwin.git
 cd hadriel_ashwin/rpi-shell
-./install.sh
+bash install.sh
 ```
 
 Log out and back in, or launch `PiShell` from the app menu. The first launch opens the config file location if you want to change service addresses.
