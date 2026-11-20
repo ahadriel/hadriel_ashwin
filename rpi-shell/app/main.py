@@ -53,12 +53,15 @@ def stats():
 class PiShell(Gtk.Window):
     def __init__(self):
         super().__init__(title="PiShell")
-        self.cfg=load_config(); self.set_decorated(False); self.fullscreen()
+        self.cfg=load_config(); self.set_decorated(False); self.set_default_size(1280,720)
         self.connect("key-press-event",self.on_key); self.connect("destroy",Gtk.main_quit)
+        # Request fullscreen after the window is mapped; some window managers ignore
+        # fullscreen requests made before the first show_all().
+        self.connect("map-event", self.ensure_fullscreen)
         provider=Gtk.CssProvider(); wallpaper=APP_DIR/"assets"/"colorfield.svg"
         provider.load_from_data((CSS % wallpaper.as_uri()).encode())
         Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(),provider,Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-        root=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=14); root.set_border_width(22); root.get_style_context().add_class("root"); self.add(root)
+        root=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=14); root.set_border_width(22); root.set_hexpand(True); root.set_vexpand(True); root.get_style_context().add_class("root"); self.add(root)
         top=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,spacing=12); top.get_style_context().add_class("topbar")
         brandbox=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=2)
         brand=Gtk.Label(label="P I  S H E L L"); brand.set_xalign(0); brand.get_style_context().add_class("brand")
@@ -73,12 +76,16 @@ class PiShell(Gtk.Window):
         root.pack_start(nav,False,False,0)
         self.stack=Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE,transition_duration=160)
         self.stack.add_named(self.build_home(),"home"); self.stack.add_named(self.build_apps(),"apps"); self.stack.add_named(self.build_services(),"services")
+        self.stack.set_hexpand(True); self.stack.set_vexpand(True)
         root.pack_start(self.stack,True,True,0)
         dock=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,spacing=8); dock.set_halign(Gtk.Align.CENTER); dock.get_style_context().add_class("dock")
         for label,cmd in [("⌂ Files","thunar"),("▣ Terminal","xfce4-terminal"),("🌐 Browser","firefox"),("▦ Apps","__apps__")]:
             b=Gtk.Button(label=label); b.connect("clicked",self.dock_launch,cmd); dock.pack_start(b,False,False,0)
         root.pack_end(dock,False,False,0)
         self.refresh(); GLib.timeout_add_seconds(2,self.refresh)
+    def ensure_fullscreen(self,*_args):
+        self.fullscreen()
+        return False
     def panel(self,title):
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=12); box.get_style_context().add_class("panel")
         t=Gtk.Label(label=title); t.set_xalign(0); t.get_style_context().add_class("panel-title"); box.pack_start(t,False,False,0); return box
@@ -160,4 +167,9 @@ class PiShell(Gtk.Window):
         if event.keyval==Gdk.KEY_F1: self.stack.set_visible_child_name("home")
         if event.keyval==Gdk.KEY_F2: self.stack.set_visible_child_name("apps")
         return False
-if __name__=="__main__": PiShell().show_all(); Gtk.main()
+if __name__=="__main__":
+    window=PiShell()
+    window.show_all()
+    # Re-assert fullscreen once GTK has completed initial widget mapping.
+    GLib.idle_add(window.fullscreen)
+    Gtk.main()
