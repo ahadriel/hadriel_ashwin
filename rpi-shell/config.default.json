@@ -1,0 +1,11 @@
+{
+  "title": "PI CONTROL",
+  "subtitle": "Your services, one calm place.",
+  "services": [
+    {"name": "CasaOS", "detail": "Home server", "kind": "url", "target": "http://localhost"},
+    {"name": "HyperHDR", "detail": "Ambient lighting", "kind": "url", "target": "http://localhost:8090"},
+    {"name": "Downtify", "detail": "Media service", "kind": "url", "target": ""},
+    {"name": "Twingate", "detail": "Secure network", "kind": "command_or_url", "target": "twingate"},
+    {"name": "JARVIS", "detail": "Coming soon", "kind": "disabled", "target": ""}
+  ]
+}
