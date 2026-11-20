@@ -25,7 +25,8 @@ sudo apt-get install -y --no-install-recommends python3 python3-gi gir1.2-gtk-3.
 echo "[2/4] Installing PiShell into ${INSTALL_DIR}..."
 mkdir -p "${INSTALL_DIR}" "${BIN_DIR}" "${CONFIG_DIR}" "${AUTOSTART_DIR}"
 cp -a "${SOURCE_DIR}/app/." "${INSTALL_DIR}/"
-cp -a "${SOURCE_DIR}/assets" "${INSTALL_DIR}/assets"
+mkdir -p "${INSTALL_DIR}/assets"
+cp -a "${SOURCE_DIR}/assets/." "${INSTALL_DIR}/assets/"
 install -m 0755 "${SOURCE_DIR}/uninstall.sh" "${INSTALL_DIR}/uninstall.sh"
 
 cat > "${BIN_DIR}/pishell" <<'LAUNCHER'
